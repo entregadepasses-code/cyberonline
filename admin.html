@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin • CYBER ONLINE</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#070b14;color:#e8f0ff;font:15px/1.5 system-ui,sans-serif;padding:16px;max-width:720px;margin:auto}
+h2{margin:26px 0 10px}input,textarea,select{width:100%;background:#0d1424;border:1px solid #1b2740;color:#e8f0ff;border-radius:10px;padding:11px;margin:4px 0 10px;font:inherit}
+button{background:#19e3ff;border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}button.r{background:#b00014;color:#fff}
+.c{background:#0d1424;border:1px solid #1b2740;border-radius:14px;padding:14px;margin-bottom:12px}.s{color:#8da0c4;font-size:13px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+</style></head><body>
+<h1>Painel Admin</h1>
+<div id="lg" style="display:none" class="c"><input id="pw" type="password" placeholder="Senha do admin"><button onclick="login()">Entrar</button></div>
+<div id="app" style="display:none">
+<h2>Loja</h2><div class="c">
+  Nome do produto<input id="name">
+  Descrição<textarea id="desc" rows="2"></textarea>
+  Link da foto do produto<input id="image" placeholder="https://...">
+  WhatsApp do suporte (com DDD, só números)<input id="whatsapp" placeholder="5593999999999">
+  Link do APK (liberado só após pagamento)<input id="apk" placeholder="https://...">
+  Status do produto<select id="soldout"><option value="false">Disponível</option><option value="true">Esgotado / em atualização</option></select>
+  <button onclick="saveS()">Salvar loja</button>
+</div>
+<h2>Planos e keys</h2><div id="plans"></div>
+<div class="c"><b>Novo plano</b><div class="row"><input id="np" placeholder="Nome (ex: Diário 24h)"><input id="npr" type="number" step="0.01" placeholder="Preço"></div><button onclick="addP()">Criar plano</button></div>
+<h2>Últimas vendas</h2><div id="ord"></div>
+</div>
+<script>
+let P = sessionStorage.p || '', D;
+const $ = i => document.getElementById(i);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function A(p, m = 'GET', b) {
+  const r = await fetch('/api/admin/' + p, { method: m, headers: { 'Content-Type': 'application/json', 'x-admin': P }, body: b && JSON.stringify(b) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Erro'); return j;
+}
+function login() { P = $('pw').value; sessionStorage.p = P; load(); }
+async function load() {
+  try { D = await A('data'); } catch (e) { $('lg').style.display = 'block'; $('app').style.display = 'none'; return; }
+  $('lg').style.display = 'none'; $('app').style.display = 'block';
+  ['name', 'desc', 'image', 'whatsapp', 'apk', 'soldout'].forEach(k => $(k).value = D.s[k] || '');
+  $('plans').innerHTML = D.plans.map(p => `<div class="c"><div class="row"><input id="n${p.id}" value="${esc(p.name)}"><input id="p${p.id}" type="number" step="0.01" value="${p.price}"></div>
+    <div class="s">Keys disponíveis: <b>${p.stock}</b></div>
+    <textarea id="k${p.id}" rows="3" placeholder="Cole as keys, uma por linha"></textarea>
+    <div class="row"><button onclick="addK(${p.id})">Adicionar keys</button><button onclick="savP(${p.id})">Salvar plano</button><button class="r" onclick="delP(${p.id})">Excluir</button></div></div>`).join('');
+  $('ord').innerHTML = D.orders.map(o => `<div class="c"><b>${esc(o.plan_name)}</b> · R$ ${o.amount}<div class="s">${esc(o.email)} · ${esc(o.status)} · ${new Date(o.created_at).toLocaleString('pt-BR')}</div></div>`).join('') || '<p class="s">Sem vendas ainda.</p>';
+}
+const done = m => { alert(m); load(); };
+async function saveS() { const b = {}; ['name', 'desc', 'image', 'whatsapp', 'apk', 'soldout'].forEach(k => b[k] = $(k).value); await A('settings', 'POST', b); done('Loja salva!'); }
+async function addP() { await A('plan', 'POST', { name: $('np').value, price: $('npr').value }); $('np').value = $('npr').value = ''; load(); }
+async function savP(id) { await A('plan', 'POST', { id, name: $('n' + id).value, price: $('p' + id).value }); done('Plano salvo!'); }
+async function delP(id) { if (confirm('Excluir plano e keys não usadas?')) { await A('plan/' + id, 'DELETE'); load(); } }
+async function addK(id) { const j = await A('keys', 'POST', { plan_id: id, keys: $('k' + id).value }); done(j.ok ? j.added + ' keys adicionadas!' : (j.error || 'Erro')); }
+if (P) load(); else $('lg').style.display = 'block';
+</script></body></html>
